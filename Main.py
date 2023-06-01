@@ -11,6 +11,7 @@ class Modelo:
         self.alarme = BooleanVar()
         self.textTemp.set("")
         self.textLuz.set("")
+        self.alarme.set(False)
 
     def getTextTemp(self):
         return self.textTemp
@@ -42,7 +43,6 @@ class Supervisao(Frame):
         self.mod = Modelo()
         self.create_widgets()
         self.connect_mqtt()
-        # self.setup_campainha()  # Comente ou remova esta linha
 
     def create_widgets(self):
         self.master.title("Supervisao")
@@ -65,10 +65,10 @@ class Supervisao(Frame):
         self.textL = Entry(self, textvariable=self.mod.getTextLuz())
         self.textL.grid(row=0, column=3, padx=5, pady=5)
 
-        # Botão para ativar uma saída de alarme do Arduino
+        # Botão para ativar ou desativar o alarme
         laba = Label(self, text="Alarme")
         laba.grid(row=1, column=0, padx=5, pady=5)
-        self.alButton = Button(self, text="normal", command=self.set_alarme)
+        self.alButton = Button(self, text="Ativar", command=self.toggle_alarme)
         self.alButton.config(bg="lightgreen")
         self.alButton.grid(row=1, column=1, padx=5, pady=5)
 
@@ -83,6 +83,7 @@ class Supervisao(Frame):
         print("Connected with result code " + str(rc))
         client.subscribe("/ic/Grupo0/Alarme")
         client.subscribe("/ic/Grupo0/Luminosidade")
+        client.subscribe("/ic/Grupo0/Temperatura")
 
     def on_message(self, client, userdata, msg):
         print(msg.topic + " " + str(msg.payload))
@@ -98,17 +99,18 @@ class Supervisao(Frame):
             self.luzFiltrada = (self.luzFiltrada * 7 + luz) / 8
             self.mod.setTextLuz("{:.2f}".format(self.luzFiltrada))
 
-    # def setup_campainha(self):
-    #     self.campainha = Button(4)  # Use o número do pino GPIO adequado
-    #     self.campainha.when_pressed = self.campainha_pressionada
-    #
-    # def campainha_pressionada(self):
-    #     self.set_alarme()
+        self.update()
 
-    def set_alarme(self):
-        val = self.alButton["text"] == "normal"
-        self.publish("/ic/Grupo0/Alarme", {"tagName": "Alarme", "valor": val})
-        self.alButton.config(text="ALARME" if val else "normal", bg="red" if val else "lightgreen")
+    def update(self):
+        self.textF.update()
+        self.textL.update()
+
+    def toggle_alarme(self):
+        alarme = self.mod.getAlarme().get()
+        alarme = not alarme
+        self.mod.setAlarme(alarme)
+        self.publish("/ic/Grupo0/Alarme", {"tagName": "Alarme", "valor": alarme})
+        self.alButton.config(text="Desativar" if alarme else "Ativar", bg="red" if alarme else "lightgreen")
 
     def publish(self, topic, payload):
         self.client.publish(topic, json.dumps(payload), qos=self.qos)
